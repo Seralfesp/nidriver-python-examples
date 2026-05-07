@@ -21,6 +21,7 @@ voltage_level = 1
 voltage_level_range = 6
 aperture_time = 0
 source_delay = 0
+resource_name = "PXIe4145"
 
 # Sets the amount of points to be captured in the measurement.
 measure_record = 250
@@ -40,7 +41,7 @@ plt.rcParams["figure.autolayout"] = True
 # Creates graph subplot to be displayed:
 fig, (ax0, ax1) = plt.subplots(nrows=2, figsize=(7, 9.6))
 
-with nidcpower.Session(resource_name="PXI1Slot1", channels=None, reset=True, options={}, independent_channels=True) as session:
+with nidcpower.Session(resource_name=resource_name, channels=0, reset=True, options={}, independent_channels=True) as session:
     # Common SMU settings
     session.source_mode = nidcpower.SourceMode.SINGLE_POINT
     session.output_function = nidcpower.OutputFunction.DC_VOLTAGE
@@ -95,13 +96,13 @@ with nidcpower.Session(resource_name="PXI1Slot1", channels=None, reset=True, opt
 
     # Exports the Start Trigger generated after the session is initiated,
     # to activate the Measure Trigger. Measurement will start after session initiates.
-    session.exported_start_trigger_output_terminal = "/PXI4139/PXI_Trig0"
+    session.exported_start_trigger_output_terminal = f"/{resource_name}/PXI_Trig0"
 
     # Configures the Measure Trigger to wait for a Digital Edge (in this case the exported Start Trigger).
     session.measure_trigger_type = nidcpower.TriggerType.DIGITAL_EDGE
 
     # Configures the terminal where the instrument is expecting to receive the Measure Trigger (in this case the exported Start Trigger).
-    session.digital_edge_measure_trigger_input_terminal = "/PXI4139/PXI_Trig0"
+    session.digital_edge_measure_trigger_input_terminal = f"/{resource_name}/PXI_Trig0"
 
     # Other useful SMU settings.
     session.measure_record_length_is_finite = False

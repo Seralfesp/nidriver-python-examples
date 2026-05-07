@@ -19,10 +19,11 @@ import nidcpower
 
 
 # Change the resource_name to the SMU name displayed in NI-MAX.
-smu_resource_name = "PXI4139"
+smu_resource_name = "PXI1Slot1"
+smu_channel = "0"
 
 # Change this according to the DAQ card you are using.
-daq_resource_name = "PXIe6251"
+daq_resource_name = "PXI1Slot2"
 
 voltage_points = []    # Voltage measurements will be stored here at the end for the voltage graph's Y-axis.
 current_points = []    # Current measurements will be stored here at the end for the current graph's Y-axis.
@@ -60,7 +61,7 @@ def animate(i):
 
 
 # NI-DCPower Session.
-with nidcpower.Session(resource_name=smu_resource_name) as session:
+with nidcpower.Session(resource_name=f"{smu_resource_name}/{smu_channel}") as session:
     session.source_mode = nidcpower.SourceMode.SEQUENCE
     session.output_function = nidcpower.OutputFunction.PULSE_VOLTAGE
     session.set_sequence(values=[pulse_level], source_delays=[source_delay])
@@ -95,7 +96,7 @@ with nidcpower.Session(resource_name=smu_resource_name) as session:
     session.measure_trigger_type = nidcpower.TriggerType.DIGITAL_EDGE
 
     # This will automatically use the resource_name specified at the beginning of the NI-DCPower session.
-    session.digital_edge_measure_trigger_input_terminal = f"/{session.io_resource_descriptor}/Engine0/SourceCompleteEvent"
+    session.digital_edge_measure_trigger_input_terminal = f"/{smu_resource_name}/Engine{smu_channel}/SourceCompleteEvent"
 
     session.initiate()
 
@@ -144,6 +145,6 @@ with nidcpower.Session(resource_name=smu_resource_name) as session:
     current_line, = ax1.plot(x_time, current_points)
 
     # FuncAnimation class which repeatedly calls the animate function to constantly update plot.
-    ani = animation.FuncAnimation(fig, animate, interval=1, repeat=False, blit=True)
+    ani = animation.FuncAnimation(fig, animate, interval=1, repeat=False, blit=True, cache_frame_data=False)
 
     plt.show()

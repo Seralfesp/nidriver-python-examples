@@ -20,42 +20,45 @@ import matplotlib.ticker as ticker
 import nidcpower
 
 
-# Gain voltage start and stop for first SMU:
-voltage_start_0 = 3.5
-voltage_stop_0 = 3.9
+gate_resource_name = "PXI1Slot1"
+gate_channel = "0"
+drain_resource_name = "PXI1Slot2"
+drain_channel = "0"
 
-# Drain voltage start and stop for second SMU:
-voltage_start_1 = 1
-voltage_stop_1 = 5
+gain_voltage_start = 3.5
+gain_voltage_stop = 3.9
 
-# Number of plots to be displayed on the graph, also used for the voltages of the first SMU that control the gate voltage
+drain_voltage_start = 1
+drain_voltage_stop = 5
+
+# Number of plots to be displayed on the graph, also used for the voltages of the gate channel
 plots = 5
 # Limits the plots variable to a minimum of 1, in case a value less than 1 is specified
 plots = np.clip(plots, 1, 2147483647)
-# Number of measurements to be taken by the second SMU
+# Number of measurements to be taken by the drain channel
 points = 10
 # Limits the points variable to a minimum of 1, in case a value less than 1 is specified
 points = np.clip(points, 1, 2147483647)
 
-sequence_voltages_0 = []
-sequence_voltages_1 = []
+gate_sequence = []
+drain_sequence = []
 source_delays = []
 
-# Generates step voltages for the first (0) and seconds (1) SMU:
+# Generates step voltages for the gate channel and drain channel SMU:
 if plots - 1 == 0:
-    sequence_voltages_0.append(voltage_start_0)
+    gate_sequence.append(gain_voltage_start)
 
 elif points - 1 == 0:
-    sequence_voltages_1.append(voltage_start_1)
+    drain_sequence.append(drain_voltage_start)
 
 else:
-    voltages_0 = (voltage_stop_0 - voltage_start_0) / (plots - 1)
+    voltages_0 = (gain_voltage_stop - gain_voltage_start) / (plots - 1)
     for i in range(plots):
-        sequence_voltages_0.append((voltages_0 * i) + voltage_start_0)
+        gate_sequence.append((voltages_0 * i) + gain_voltage_start)
 
-    voltages_1 = (voltage_stop_1 - voltage_start_1) / (points - 1)
+    voltages_1 = (drain_voltage_stop - drain_voltage_start) / (points - 1)
     for i in range(points):
-        sequence_voltages_1.append((voltages_1 * i) + voltage_start_1)
+        drain_sequence.append((voltages_1 * i) + drain_voltage_start)
 
 
 # Sets up graph properties:
@@ -66,89 +69,91 @@ plt.rcParams["figure.autolayout"] = True
 fig, ax = plt.subplots(nrows=1, figsize=(7, 9.6))
 
 # Initializes both SMU sessions:
-with nidcpower.Session(resource_name="PXI1Slot1", options={}) as session1, nidcpower.Session(resource_name="PXI1Slot2", options={}) as session2:
-    # Settings for the first SMU:
-    session1.source_mode = nidcpower.SourceMode.SEQUENCE
-    session1.output_function = nidcpower.OutputFunction.DC_VOLTAGE
-    session1.voltage_level_autorange = True
-    session1.current_limit_autorange = True
-    session1.source_delay = 0.003
-    session1.current_limit = 0.01
+with nidcpower.Session(resource_name=f"{gate_resource_name}/{gate_channel}", options={}) as gate_session, nidcpower.Session(resource_name=f"{drain_resource_name}/{drain_channel}", options={}) as drain_session:
+    # Settings for the gate channel:
+    gate_session.source_mode = nidcpower.SourceMode.SEQUENCE
+    gate_session.output_function = nidcpower.OutputFunction.DC_VOLTAGE
+    gate_session.voltage_level_autorange = True
+    gate_session.current_limit_autorange = True
+    gate_session.source_delay = 0.003
+    gate_session.current_limit = 0.01
     
-    # Creates an array source delays of the same size as the step voltages to configure the set_sequence method for the first SMU:
-    for i in range(len(sequence_voltages_0)):
+    # Creates an array source delays of the same size as the step voltages to configure the set_sequence method for the gate channel:
+    for i in range(len(gate_sequence)):
         source_delays.append(0.003)
 
-    session1.set_sequence(values=sequence_voltages_0, source_delays=source_delays)
+    gate_session.set_sequence(values=gate_sequence, source_delays=source_delays)
 
-    # Triggering setup of the first SMU:
-    session1.source_trigger_type = nidcpower.TriggerType.DIGITAL_EDGE
-    session1.digital_edge_source_trigger_input_terminal = f"/{session2.io_resource_descriptor}/Engine0/SequenceIterationCompleteEvent"
+    # Triggering setup of the gate channel:
+    gate_session.source_trigger_type = nidcpower.TriggerType.DIGITAL_EDGE
+    gate_session.digital_edge_source_trigger_input_terminal = f"/{drain_resource_name}/Engine{drain_channel}/SequenceIterationCompleteEvent"
 
-    session1.commit()
+    gate_session.commit()
 
-    # Settings for the second SMU:
-    session2.source_mode = nidcpower.SourceMode.SEQUENCE
-    session2.output_function = nidcpower.OutputFunction.DC_VOLTAGE
-    session2.voltage_level_autorange = True
-    session2.current_limit_autorange = True
-    session2.source_delay = 0.005
-    session2.current_limit = 0.01
+    # Settings for the drain channel:
+    drain_session.source_mode = nidcpower.SourceMode.SEQUENCE
+    drain_session.output_function = nidcpower.OutputFunction.DC_VOLTAGE
+    drain_session.voltage_level_autorange = True
+    drain_session.current_limit_autorange = True
+    drain_session.source_delay = 0.005
+    drain_session.current_limit = 0.01
 
     # Resets the previous source_delays array,
     # and creates a new array source delays of the same size as the step voltages,
-    # to configure the set_sequence method for the second SMU:
+    # to configure the set_sequence method for the drain channel:
     source_delays = []
-    for i in range(len(sequence_voltages_1)):
+    for i in range(len(drain_sequence)):
         source_delays.append(0.005)
 
-    session2.set_sequence(values=sequence_voltages_1, source_delays=source_delays)
+    drain_session.set_sequence(values=drain_sequence, source_delays=source_delays)
 
-    # Triggering setup of the second SMU:
-    session2.start_trigger_type = nidcpower.TriggerType.DIGITAL_EDGE
-    session2.digital_edge_start_trigger_input_terminal = f"/{session1.io_resource_descriptor}/Engine0/MeasureCompleteEvent"
+    # Triggering setup of the drain channel:
+    drain_session.start_trigger_type = nidcpower.TriggerType.DIGITAL_EDGE
+    drain_session.digital_edge_start_trigger_input_terminal = f"/{gate_resource_name}/Engine{gate_channel}/MeasureCompleteEvent"
+    drain_session.sequence_advance_trigger_type = nidcpower.TriggerType.DIGITAL_EDGE
+    drain_session.digital_edge_sequence_advance_trigger_input_terminal = f"/{gate_resource_name}/Engine{gate_channel}/MeasureCompleteEvent"
 
-    session2.sequence_loop_count = plots
-    session2.commit()
+    drain_session.sequence_loop_count = plots
+    drain_session.commit()
 
     # Initiates both SMU sessions:
-    session2.initiate()
-    session1.initiate()
+    drain_session.initiate()
+    gate_session.initiate()
 
-    session2.wait_for_event(event_id=nidcpower.Event.SEQUENCE_ENGINE_DONE, timeout=15)
+    drain_session.wait_for_event(event_id=nidcpower.Event.SEQUENCE_ENGINE_DONE, timeout=15)
 
-    # Stores measurements of the first SMU:
-    measurements_1 = session1.fetch_multiple(count=plots, timeout=10)
+    # Stores measurements of the gate channel::
+    gate_measurements = gate_session.fetch_multiple(count=plots, timeout=10)
 
-    # Creates an array to store measurements of the second SMU:
-    measurements_2 = []
-    for plot in range(len(measurements_1)):
-        measurements_2.append(session2.fetch_multiple(count=points, timeout=10))
+    # Creates an array to store measurements of the drain channel:
+    drain_measurements = []
+    for plot in range(len(gate_measurements)):
+        drain_measurements.append(drain_session.fetch_multiple(count=points, timeout=10))
 
-    # Voltage and current arrays of the second SMU measurements to later use each pair as a plot:
-    measured_voltages_2 = []
-    measured_currents_2 = []
+    # Voltage and current arrays of the drain channel measurements to later use each pair as a plot:
+    drain_voltages = []
+    drain_currents = []
 
     # Formatting for better output visualization:
-    line_format = '{:<18} {:<16} {:<10}'
-    print(line_format.format('Gate Voltage (V)', 'Current (A)', 'Drain Voltage (V)'))
+    line_format = '{:<18} {:<18} {:<18}'
+    print(line_format.format('Gate Voltage (V)', 'Drain Current (A)',  'Drain Voltage (V)'))
 
-    for plot in range(len(measurements_1)):
-        for point in range(len(measurements_2[0])):
-            measured_voltages_2.append(measurements_2[plot][point][0])
-            measured_currents_2.append(measurements_2[plot][point][1])
-            print(line_format.format("{:.3f}".format(measurements_1[plot][0]),
-                                     "{:.3e}".format(measurements_2[plot][point][1]),
-                                     "{:.3f}".format(measurements_2[plot][point][0])))
+    for plot in range(len(gate_measurements)):
+        for point in range(len(drain_measurements[0])):
+            drain_voltages.append(drain_measurements[plot][point].voltage)
+            drain_currents.append(drain_measurements[plot][point].current)
+            print(line_format.format("{:.3f}".format(gate_measurements[plot][0]),
+                                     "{:.3e}".format(drain_measurements[plot][point].current),
+                                     "{:.3f}".format(drain_measurements[plot][point].voltage)))
 
-        # Plots a set of points where xaxis = Voltages and yaxis = Currents of the second SMU
-        ax.plot(measured_voltages_2, measured_currents_2, marker='o', label=f"{measurements_1[plot][0]:3f} V")
-        measured_voltages_2 = []
-        measured_currents_2 = []
+        # Plots a set of points where xaxis = Voltages and yaxis = Currents of the drain channel for each gate voltage, and adds a legend with the corresponding gate voltage value:
+        ax.plot(drain_voltages, drain_currents, marker='o', label=f"{gate_measurements[plot].voltage:3f} V")
+        drain_voltages = []
+        drain_currents = []
 
     # Disables generation/acquisition on both SMUs:
-    session1.output_enabled = False
-    session2.output_enabled = False
+    gate_session.output_enabled = False
+    drain_session.output_enabled = False
 
     # Settings for the plot to be displayed:
     graphs = {}
